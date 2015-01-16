@@ -175,7 +175,7 @@ class ActorProducerTest extends TestKit(ActorSystem("test")) with WordSpecLike w
               probe.expectMsgType[CamelMessage]
               probe.sender() ! "some message"
             }
-            doneSync should be(false)
+            doneSync should ===(false)
             info("done async")
 
             asyncCallback.expectDoneAsyncWithin(1 second)
@@ -211,7 +211,7 @@ class ActorProducerTest extends TestKit(ActorSystem("test")) with WordSpecLike w
             asyncCallback.awaitCalled(100 millis)
             verify(exchange).setFailure(MMatchers.argThat(new ArgumentMatcher[FailureResult] {
               def matches(failure: AnyRef) = {
-                failure.asInstanceOf[FailureResult].cause should be(anInstanceOf[TimeoutException])
+                failure.asInstanceOf[FailureResult].cause should ===(anInstanceOf[TimeoutException])
                 true
               }
 
@@ -237,7 +237,7 @@ class ActorProducerTest extends TestKit(ActorSystem("test")) with WordSpecLike w
             producer = given(outCapable = false, autoAck = true)
             val doneSync = producer.processExchangeAdapter(exchange, asyncCallback)
 
-            doneSync should be(true)
+            doneSync should ===(true)
             info("done sync")
             asyncCallback.expectDoneSyncWithin(1 second)
             info("async callback called")
@@ -255,7 +255,7 @@ class ActorProducerTest extends TestKit(ActorSystem("test")) with WordSpecLike w
 
               val doneSync = producer.processExchangeAdapter(exchange, asyncCallback)
 
-              doneSync should be(false)
+              doneSync should ===(false)
               within(1 second) {
                 probe.expectMsgType[CamelMessage]
                 info("message sent to consumer")
@@ -306,7 +306,7 @@ class ActorProducerTest extends TestKit(ActorSystem("test")) with WordSpecLike w
 
               val doneSync = producer.processExchangeAdapter(exchange, asyncCallback)
 
-              doneSync should be(false)
+              doneSync should ===(false)
               within(1 second) {
                 probe.expectMsgType[CamelMessage]
                 info("message sent to consumer")

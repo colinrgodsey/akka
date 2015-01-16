@@ -16,11 +16,11 @@ class ActorEndpointPathTest extends WordSpec with SharedCamelSystem with Matcher
 
   "findActorIn returns Some(actor ref) if actor exists" in {
     val path = system.actorOf(Props(new Actor { def receive = { case _ ⇒ } }), "knownactor").path
-    find(path.toString) should be('defined)
+    find(path.toString) should ===('defined)
   }
 
   "findActorIn returns None" when {
-    "non existing valid path" in { find("akka://system/user/unknownactor") should be(None) }
+    "non existing valid path" in { find("akka://system/user/unknownactor") should ===(None) }
   }
   "fromCamelPath throws IllegalArgumentException" when {
     "invalid path" in {
