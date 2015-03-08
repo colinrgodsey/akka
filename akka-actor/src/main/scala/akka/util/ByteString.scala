@@ -159,9 +159,7 @@ object ByteString {
       if (isCompact) ByteString1C(bytes) else ByteString1C(toArray)
 
     def asByteBuffer: ByteBuffer = {
-      val buffer = ByteBuffer.wrap(bytes, startIndex, length).asReadOnlyBuffer
-      if (buffer.remaining < bytes.length) buffer.slice //TODO: why slice ?
-      else buffer
+      ByteBuffer.wrap(bytes, startIndex, length).asReadOnlyBuffer
     }
 
     def asByteBuffers: scala.collection.immutable.Iterable[ByteBuffer] = List(asByteBuffer)

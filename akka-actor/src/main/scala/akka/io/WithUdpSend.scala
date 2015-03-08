@@ -68,42 +68,42 @@ private[io] trait WithUdpSend {
     case ChannelWritable ⇒ if (hasWritePending) doSend(registration)
   }
 
-  private def byteStringToTempOrAsByteBuffer(bs: ByteString, buffer: ByteBuffer): ByteBuffer = {
-    if(bs.isCompact) bs.asByteBuffer
-    else {
-      buffer.clear()
-      bs.copyToBuffer(buffer)
-      buffer.flip()
-      buffer
+  private def doSendBuffer(buffer: ByteBuffer, registration: ChannelRegistration): Unit = {
+    val writtenBytes = channel.send(buffer, pendingSend.target)
+    if (TraceLogging) log.debug("Wrote [{}] bytes to channel", writtenBytes)
+
+    // Datagram channel either sends the whole message, or nothing
+    if (writtenBytes == 0) {
+      if (retriedSend) {
+        pendingCommander ! CommandFailed(pendingSend)
+        retriedSend = false
+        pendingSend = null
+        pendingCommander = null
+      } else {
+        registration.enableInterest(SelectionKey.OP_WRITE)
+        retriedSend = true
+      }
+    } else {
+      if (pendingSend.wantsAck) pendingCommander ! pendingSend.ack
+      retriedSend = false
+      pendingSend = null
+      pendingCommander = null
     }
   }
 
   private def doSend(registration: ChannelRegistration): Unit = {
-    val buffer = udp.bufferPool.acquire()
-    try {
-      val sendBuffer = byteStringToTempOrAsByteBuffer(pendingSend.payload, buffer)
-      val writtenBytes = channel.send(sendBuffer, pendingSend.target)
-      if (TraceLogging) log.debug("Wrote [{}] bytes to channel", writtenBytes)
-
-      // Datagram channel either sends the whole message, or nothing
-      if (writtenBytes == 0) {
-        if (retriedSend) {
-          pendingCommander ! CommandFailed(pendingSend)
-          retriedSend = false
-          pendingSend = null
-          pendingCommander = null
-        } else {
-          registration.enableInterest(SelectionKey.OP_WRITE)
-          retriedSend = true
-        }
-      } else {
-        if (pendingSend.wantsAck) pendingCommander ! pendingSend.ack
-        retriedSend = false
-        pendingSend = null
-        pendingCommander = null
+    if(pendingSend.payload.isCompact) {
+      doSendBuffer(pendingSend.payload.asByteBuffer, registration)
+    } else {
+      val buffer = udp.bufferPool.acquire()
+      try {
+        buffer.clear()
+        pendingSend.payload.copyToBuffer(buffer)
+        buffer.flip()
+        doSendBuffer(buffer, registration)
+      } finally {
+        udp.bufferPool.release(buffer)
       }
-    } finally {
-      udp.bufferPool.release(buffer)
     }
   }
 }
