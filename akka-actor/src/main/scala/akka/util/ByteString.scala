@@ -582,7 +582,7 @@ final class ByteStringBuilder extends Builder[Byte, ByteString] {
         //we will have to resize and copy anyways, might as well flush it
         clearTemp()
         val tmpArr = new Array[Byte](seq.length)
-        seq.copyToArray(tmpArr)
+        xs.copyToArray(tmpArr)
         _builder += ByteString.ByteString1(tmpArr)
         _length += seq.length
       case seq: collection.IndexedSeq[_] ⇒
