@@ -4,10 +4,12 @@
 package akka.io
 
 import java.net.InetSocketAddress
+import java.nio.ByteBuffer
 import java.nio.channels.{ SelectionKey, DatagramChannel }
 import akka.actor.{ ActorRef, ActorLogging, Actor }
 import akka.io.Udp.{ CommandFailed, Send }
 import akka.io.SelectionHandler._
+import akka.util.ByteString
 
 import scala.util.control.NonFatal
 
@@ -66,13 +68,21 @@ private[io] trait WithUdpSend {
     case ChannelWritable ⇒ if (hasWritePending) doSend(registration)
   }
 
+  private def byteStringToTempOrAsByteBuffer(bs: ByteString, buffer: ByteBuffer): ByteBuffer = {
+    if(bs.isCompact) bs.asByteBuffer
+    else {
+      buffer.clear()
+      bs.copyToBuffer(buffer)
+      buffer.flip()
+      buffer
+    }
+  }
+
   private def doSend(registration: ChannelRegistration): Unit = {
     val buffer = udp.bufferPool.acquire()
     try {
-      buffer.clear()
-      pendingSend.payload.copyToBuffer(buffer)
-      buffer.flip()
-      val writtenBytes = channel.send(buffer, pendingSend.target)
+      val sendBuffer = byteStringToTempOrAsByteBuffer(pendingSend.payload, buffer)
+      val writtenBytes = channel.send(sendBuffer, pendingSend.target)
       if (TraceLogging) log.debug("Wrote [{}] bytes to channel", writtenBytes)
 
       // Datagram channel either sends the whole message, or nothing

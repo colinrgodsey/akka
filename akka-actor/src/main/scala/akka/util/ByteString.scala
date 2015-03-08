@@ -160,7 +160,7 @@ object ByteString {
 
     def asByteBuffer: ByteBuffer = {
       val buffer = ByteBuffer.wrap(bytes, startIndex, length).asReadOnlyBuffer
-      if (buffer.remaining < bytes.length) buffer.slice
+      if (buffer.remaining < bytes.length) buffer.slice //TODO: why slice ?
       else buffer
     }
 
@@ -544,8 +544,12 @@ final class ByteStringBuilder extends Builder[Byte, ByteString] {
     _tempCapacity = _temp.length
   }
 
+  private def shouldResizeTemp(size: Int): Boolean = {
+    _tempCapacity < size || _tempCapacity == 0
+  }
+
   private def ensureTempSize(size: Int): Unit = {
-    if (_tempCapacity < size || _tempCapacity == 0) {
+    if (shouldResizeTemp(size)) {
       var newSize = if (_tempCapacity == 0) 16 else _tempCapacity * 2
       while (newSize < size) newSize *= 2
       resizeTemp(newSize)
@@ -576,6 +580,13 @@ final class ByteStringBuilder extends Builder[Byte, ByteString] {
         _length += bs.length
       case xs: WrappedArray.ofByte ⇒
         putByteArrayUnsafe(xs.array.clone)
+      case seq: collection.IndexedSeq[_] if shouldResizeTemp(seq.length) ⇒
+        //we will have to resize and copy anyways, might as well flush it
+        clearTemp()
+        val tmpArr = new Array[Byte](seq.length)
+        seq.copyToArray(tmpArr)
+        _builder += ByteString.ByteString1(tmpArr)
+        _length += seq.length
       case seq: collection.IndexedSeq[_] ⇒
         ensureTempSize(_tempLength + xs.size)
         xs.copyToArray(_temp, _tempLength)
