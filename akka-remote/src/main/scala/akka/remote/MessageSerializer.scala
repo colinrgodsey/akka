@@ -20,8 +20,10 @@ private[akka] object MessageSerializer {
    * Uses Akka Serialization for the specified ActorSystem to transform the given MessageProtocol to a message
    */
   def deserialize(system: ExtendedActorSystem, messageProtocol: SerializedMessage): AnyRef = {
+    val out = ByteString.newOutput()
+
     SerializationExtension(system).deserialize(
-      messageProtocol.getMessage.toByteArray,
+      messageProtocol.getMessage.newInput(),
       messageProtocol.getSerializerId,
       if (messageProtocol.hasMessageManifest) Some(system.dynamicAccess.getClassFor[AnyRef](messageProtocol.getMessageManifest.toStringUtf8).get) else None).get
   }
@@ -33,7 +35,9 @@ private[akka] object MessageSerializer {
     val s = SerializationExtension(system)
     val serializer = s.findSerializerFor(message)
     val builder = SerializedMessage.newBuilder
-    builder.setMessage(ByteString.copyFrom(serializer.toBinary(message)))
+    val os = ByteString.newOutput()
+    serializer.toOutputStream(message, os)
+    builder.setMessage(os.toByteString)
     builder.setSerializerId(serializer.identifier)
     if (serializer.includeManifest)
       builder.setMessageManifest(ByteString.copyFromUtf8(message.getClass.getName))

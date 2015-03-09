@@ -6,7 +6,7 @@ package akka.serialization
 
 import java.io._
 import java.util.concurrent.Callable
-import akka.util.ClassLoaderObjectInputStream
+import akka.util.{ ByteStringBuilder, ClassLoaderObjectInputStream }
 import akka.actor.ExtendedActorSystem
 import scala.util.DynamicVariable
 import akka.serialization.JavaSerializer.CurrentSystem
@@ -42,6 +42,12 @@ trait Serializer {
    * Serializes the given object into an Array of Byte
    */
   def toBinary(o: AnyRef): Array[Byte]
+
+  /**
+   * Writes the serialized data out to an output stream
+   */
+  def toOutputStream(o: AnyRef, out: OutputStream): Unit =
+    out.write(toBinary(o))
 
   /**
    * Returns whether this serializer needs a manifest in the fromBinary method
@@ -158,24 +164,40 @@ class JavaSerializer(val system: ExtendedActorSystem) extends BaseSerializer {
 
   def includeManifest: Boolean = false
 
+  /*override def toInputStream(o: AnyRef): InputStream = {
+    val bos = new OutputStream {
+      private val builder = new ByteStringBuilder
+
+      def write(b: Int): Unit =
+        builder += (b & 0xFF).toByte
+
+      def result = builder.result
+    }
+    toOutputStream(o, bos)
+    bos.result.inputStream
+  }*/
+
+  override def toOutputStream(o: AnyRef, out: OutputStream): Unit = {
+    val oos = new ObjectOutputStream(out)
+    JavaSerializer.currentSystem.withValue(system) { oos.writeObject(o) }
+    oos.close()
+  }
+
   def toBinary(o: AnyRef): Array[Byte] = {
     val bos = new ByteArrayOutputStream
-    val out = new ObjectOutputStream(bos)
-    JavaSerializer.currentSystem.withValue(system) { out.writeObject(o) }
-    out.close()
+    toOutputStream(o, bos)
     bos.toByteArray
   }
 
-  def fromBinary(bytes: Array[Byte], clazz: Option[Class[_]]): AnyRef = {
+  def fromBinary(bytes: Array[Byte], clazz: Option[Class[_]]): AnyRef =
     fromInputStream(new ByteArrayInputStream(bytes), clazz)
-  }
 
-  override def fromInputStream(is: InputStream, clazz: Option[Class[_]]): AnyRef = {
+  override def fromInputStream(is: InputStream, clazz: Option[Class[_]]): AnyRef = try {
     val in = new ClassLoaderObjectInputStream(system.dynamicAccess.classLoader, is)
     val obj = JavaSerializer.currentSystem.withValue(system) { in.readObject }
     in.close()
     obj
-  }
+  } finally is.close()
 }
 
 /**

@@ -440,7 +440,7 @@ sealed abstract class ByteString extends IndexedSeq[Byte] with IndexedSeqOptimiz
     @volatile private var readSoFar = 0
 
     def read(): Int = synchronized {
-      if(itr.hasNext) {
+      if (itr.hasNext) {
         readSoFar += 1
         itr.next() & 0xFF
       } else -1

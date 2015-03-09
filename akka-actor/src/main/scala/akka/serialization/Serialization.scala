@@ -9,7 +9,7 @@ import akka.actor._
 import akka.event.Logging
 import java.util.concurrent.ConcurrentHashMap
 import scala.collection.mutable.ArrayBuffer
-import java.io.NotSerializableException
+import java.io.{ OutputStream, InputStream, NotSerializableException }
 import scala.util.{ Try, DynamicVariable, Failure }
 import scala.collection.immutable
 import scala.util.control.NonFatal
@@ -89,6 +89,13 @@ class Serialization(val system: ExtendedActorSystem) extends Extension {
    */
   def serialize(o: AnyRef): Try[Array[Byte]] = Try(findSerializerFor(o).toBinary(o))
 
+  def serialize(o: AnyRef, os: OutputStream): Try[Unit] = {
+    val tr = serialize(o).map(bytes ⇒ os.write(bytes))
+    os.close()
+
+    tr
+  }
+
   /**
    * Deserializes the given array of bytes using the specified serializer id,
    * using the optional type hint to the Serializer and the optional ClassLoader ot load it into.
@@ -111,6 +118,21 @@ class Serialization(val system: ExtendedActorSystem) extends Extension {
    */
   def deserialize[T](bytes: Array[Byte], clazz: Class[T]): Try[T] =
     Try(serializerFor(clazz).fromBinary(bytes, Some(clazz)).asInstanceOf[T])
+
+  /**
+   * Deserializes the given array of bytes using the specified serializer id,
+   * using the optional type hint to the Serializer and the optional ClassLoader ot load it into.
+   * Returns either the resulting object or an Exception if one was thrown.
+   */
+  def deserialize[T](is: InputStream, serializerId: Int, clazz: Option[Class[_ <: T]]): Try[T] =
+    Try {
+      val serializer = try serializerByIdentity(serializerId) catch {
+        case _: NoSuchElementException ⇒ throw new NotSerializableException(
+          s"Cannot find serializer with id [$serializerId]. The most probable reason is that the configuration entry " +
+            "akka.actor.serializers is not in synch between the two systems.")
+      }
+      serializer.fromInputStream(is, clazz).asInstanceOf[T]
+    }
 
   /**
    * Returns the Serializer configured for the given object, returns the NullSerializer if it's null.
