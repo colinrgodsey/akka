@@ -361,15 +361,25 @@ private[io] abstract class TcpConnection(val tcp: TcpExt, val channel: SocketCha
   }
 
   def PendingBufferWrite(commander: ActorRef, data: ByteString, ack: Event, tail: WriteCommand): PendingBufferWrite = {
-    val buffer = bufferPool.acquire()
-    try {
-      val copied = data.copyToBuffer(buffer)
-      buffer.flip()
-      new PendingBufferWrite(commander, data.drop(copied), ack, buffer, tail)
-    } catch {
-      case NonFatal(e) ⇒
-        bufferPool.release(buffer)
-        throw e
+    @inline def newPendingBufferWrite(buffer: ByteBuffer, remaining: ByteString) =
+      new PendingBufferWrite(commander, remaining, ack, buffer, tail)
+
+    if (data.isCompact) {
+      val head = data.headByteString
+      val remaining = data.drop(head.length)
+
+      newPendingBufferWrite(head.asByteBuffer, remaining)
+    } else {
+      val buffer = bufferPool.acquire()
+      try {
+        val copied = data.copyToBuffer(buffer)
+        buffer.flip()
+        newPendingBufferWrite(buffer, data.drop(copied))
+      } catch {
+        case NonFatal(e) ⇒
+          bufferPool.release(buffer)
+          throw e
+      }
     }
   }
 
@@ -408,7 +418,7 @@ private[io] abstract class TcpConnection(val tcp: TcpExt, val channel: SocketCha
       } catch { case e: IOException ⇒ handleError(info.handler, e); this }
     }
 
-    def release(): Unit = bufferPool.release(buffer)
+    def release(): Unit = if (!buffer.isReadOnly) bufferPool.release(buffer)
   }
 
   def PendingWriteFile(commander: ActorRef, filePath: String, offset: Long, count: Long, ack: Event,
