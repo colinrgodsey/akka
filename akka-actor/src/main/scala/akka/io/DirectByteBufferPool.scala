@@ -6,11 +6,31 @@ package akka.io
 
 import java.util.concurrent.atomic.AtomicBoolean
 import java.nio.ByteBuffer
+import akka.util.ByteString
+
 import annotation.tailrec
+import scala.util.control.NonFatal
 
 trait BufferPool {
   def acquire(): ByteBuffer
   def release(buf: ByteBuffer)
+
+  def readOnlyOrAcquireAndCopy(from: ByteString): ByteBuffer = {
+    if (from.canWrapAsByteBuffer) from.asByteBuffer
+    else {
+      val buffer: ByteBuffer = acquire()
+      try {
+        buffer.clear()
+        from.copyToBuffer(buffer)
+        buffer.flip()
+        buffer
+      } catch {
+        case NonFatal(t) ⇒
+          release(buffer)
+          throw t
+      }
+    }
+  }
 }
 
 /**
@@ -31,10 +51,12 @@ private[akka] class DirectByteBufferPool(defaultBufferSize: Int, maxPoolEntries:
     takeBufferFromPool()
 
   def release(buf: ByteBuffer): Unit =
-    offerBufferToPool(buf)
+    if (!buf.isReadOnly) offerBufferToPool(buf)
 
   private def allocate(size: Int): ByteBuffer =
     ByteBuffer.allocateDirect(size)
+
+  def size = buffersInPool
 
   @tailrec
   private final def takeBufferFromPool(): ByteBuffer =

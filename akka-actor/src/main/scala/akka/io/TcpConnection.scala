@@ -415,7 +415,7 @@ private[io] abstract class TcpConnection(val tcp: TcpExt, val channel: SocketCha
       } catch { case e: IOException ⇒ handleError(info.handler, e); this }
     }
 
-    def release(): Unit = if (!buffer.isReadOnly) bufferPool.release(buffer)
+    def release(): Unit = bufferPool.release(buffer)
   }
 
   def PendingWriteFile(commander: ActorRef, filePath: String, offset: Long, count: Long, ack: Event,

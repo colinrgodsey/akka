@@ -4,6 +4,7 @@
 
 package akka.util
 
+import akka.io.DirectByteBufferPool
 import org.scalatest.WordSpec
 import org.scalatest.Matchers
 import org.scalatest.prop.Checkers
@@ -576,6 +577,27 @@ class ByteStringSpec extends WordSpec with Matchers with Checkers {
       "encoding Float in little-endian" in { check { slice: ArraySlice[Float] ⇒ testFloatEncoding(slice, LITTLE_ENDIAN) } }
       "encoding Double in big-endian" in { check { slice: ArraySlice[Double] ⇒ testDoubleEncoding(slice, BIG_ENDIAN) } }
       "encoding Double in little-endian" in { check { slice: ArraySlice[Double] ⇒ testDoubleEncoding(slice, LITTLE_ENDIAN) } }
+    }
+  }
+
+  "A DirectByteBufferPool" must {
+    "ignore read-only ByteBuffers" when {
+      "wrapped from ByteString" in {
+        val pool = new DirectByteBufferPool(10, 10)
+        val arr = Array[Byte](1, 2, 3, 4)
+        val compactBs = ByteString.ByteString1(arr)
+        val sparseBs = compactBs ++ compactBs
+
+        require(pool.size == 0)
+
+        pool.release(compactBs.asByteBuffer)
+
+        require(pool.size == 0)
+
+        pool.release(sparseBs.asByteBuffer)
+
+        require(pool.size == 1)
+      }
     }
   }
 }

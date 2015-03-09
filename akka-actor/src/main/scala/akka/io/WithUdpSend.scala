@@ -68,42 +68,31 @@ private[io] trait WithUdpSend {
     case ChannelWritable ⇒ if (hasWritePending) doSend(registration)
   }
 
-  private def doSendBuffer(buffer: ByteBuffer, registration: ChannelRegistration): Unit = {
-    val writtenBytes = channel.send(buffer, pendingSend.target)
-    if (TraceLogging) log.debug("Wrote [{}] bytes to channel", writtenBytes)
+  private def doSend(registration: ChannelRegistration): Unit = {
+    val buffer = udp.bufferPool.readOnlyOrAcquireAndCopy(pendingSend.payload)
+    try {
+      val writtenBytes = channel.send(buffer, pendingSend.target)
+      if (TraceLogging) log.debug("Wrote [{}] bytes to channel", writtenBytes)
 
-    // Datagram channel either sends the whole message, or nothing
-    if (writtenBytes == 0) {
-      if (retriedSend) {
-        pendingCommander ! CommandFailed(pendingSend)
+      // Datagram channel either sends the whole message, or nothing
+      if (writtenBytes == 0) {
+        if (retriedSend) {
+          pendingCommander ! CommandFailed(pendingSend)
+          retriedSend = false
+          pendingSend = null
+          pendingCommander = null
+        } else {
+          registration.enableInterest(SelectionKey.OP_WRITE)
+          retriedSend = true
+        }
+      } else {
+        if (pendingSend.wantsAck) pendingCommander ! pendingSend.ack
         retriedSend = false
         pendingSend = null
         pendingCommander = null
-      } else {
-        registration.enableInterest(SelectionKey.OP_WRITE)
-        retriedSend = true
       }
-    } else {
-      if (pendingSend.wantsAck) pendingCommander ! pendingSend.ack
-      retriedSend = false
-      pendingSend = null
-      pendingCommander = null
-    }
-  }
-
-  private def doSend(registration: ChannelRegistration): Unit = {
-    if (pendingSend.payload.canWrapAsByteBuffer) {
-      doSendBuffer(pendingSend.payload.asByteBuffer, registration)
-    } else {
-      val buffer = udp.bufferPool.acquire()
-      try {
-        buffer.clear()
-        pendingSend.payload.copyToBuffer(buffer)
-        buffer.flip()
-        doSendBuffer(buffer, registration)
-      } finally {
-        udp.bufferPool.release(buffer)
-      }
+    } finally {
+      udp.bufferPool.release(buffer)
     }
   }
 }
