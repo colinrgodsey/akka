@@ -586,7 +586,7 @@ class ByteStringSpec extends WordSpec with Matchers with Checkers {
         val pool = new DirectByteBufferPool(10, 10)
         val arr = Array[Byte](1, 2, 3, 4)
         val compactBs = ByteString.ByteString1(arr)
-        val sparseBs = compactBs ++ compactBs
+        val writeableByteBuffer = ByteBuffer.wrap(arr.clone())
 
         require(pool.size == 0)
 
@@ -594,7 +594,7 @@ class ByteStringSpec extends WordSpec with Matchers with Checkers {
 
         require(pool.size == 0)
 
-        pool.release(sparseBs.asByteBuffer)
+        pool.release(writeableByteBuffer)
 
         require(pool.size == 1)
       }
