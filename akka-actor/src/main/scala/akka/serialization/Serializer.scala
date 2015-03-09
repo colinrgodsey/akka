@@ -8,6 +8,8 @@ import java.io._
 import java.util.concurrent.Callable
 import akka.util.{ ByteStringBuilder, ClassLoaderObjectInputStream }
 import akka.actor.ExtendedActorSystem
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuilder
 import scala.util.DynamicVariable
 import akka.serialization.JavaSerializer.CurrentSystem
 
@@ -62,12 +64,23 @@ trait Serializer {
 
   /**
    * Produces an object from an InputStream, with an optional type-hint;
-   * the class should be loaded using ActorSystem.dynamicAccess.
+   * the class should be loaded using ActorSystem.dynamicAccess and can be
+   * optimized with builders for the desired result.
    */
   def fromInputStream(is: InputStream, manifest: Option[Class[_]]): AnyRef = {
-    val target = new Array[Byte](is.available())
-    is.read(target)
-    fromBinary(target, manifest)
+    val builder = new ArrayBuilder.ofByte
+
+    if (is.available > 0) builder.sizeHint(is.available)
+
+    var reading = true
+    while (reading) {
+      val n = is.read()
+
+      if (n == -1) reading = false
+      else builder += n.toByte
+    }
+
+    fromBinary(builder.result(), manifest)
   }
 
   /**
@@ -163,19 +176,6 @@ object JavaSerializer {
 class JavaSerializer(val system: ExtendedActorSystem) extends BaseSerializer {
 
   def includeManifest: Boolean = false
-
-  /*override def toInputStream(o: AnyRef): InputStream = {
-    val bos = new OutputStream {
-      private val builder = new ByteStringBuilder
-
-      def write(b: Int): Unit =
-        builder += (b & 0xFF).toByte
-
-      def result = builder.result
-    }
-    toOutputStream(o, bos)
-    bos.result.inputStream
-  }*/
 
   override def toOutputStream(o: AnyRef, out: OutputStream): Unit = {
     val oos = new ObjectOutputStream(out)
