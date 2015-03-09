@@ -361,7 +361,7 @@ private[io] abstract class TcpConnection(val tcp: TcpExt, val channel: SocketCha
   }
 
   def PendingBufferWrite(commander: ActorRef, data: ByteString, ack: Event, tail: WriteCommand): PendingBufferWrite = {
-    if (data.isCompact) {
+    if (data.canWrapAsByteBuffer) {
       val head = data.headByteString
       val remaining = data.drop(head.length)
 

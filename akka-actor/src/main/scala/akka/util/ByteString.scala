@@ -395,8 +395,8 @@ sealed abstract class ByteString extends IndexedSeq[Byte] with IndexedSeqOptimiz
   def headByteString: ByteString.ByteString1
 
   /**
-   * Returns a read-only ByteBuffer that directly wraps this ByteString
-   * if it is not fragmented.
+   * Returns a read-only ByteBuffer that either directly wraps the content,
+   * or returns a cloned copy if this ByteString is fragmented.
    */
   def asByteBuffer: ByteBuffer
 
@@ -405,6 +405,11 @@ sealed abstract class ByteString extends IndexedSeq[Byte] with IndexedSeqOptimiz
    * all fragments. Will always have at least one entry.
    */
   def asByteBuffers: immutable.Iterable[ByteBuffer]
+
+  /**
+   * Indicates whether this ByteString can produce a wrapped ByteBuffer via [[asByteBuffer]]
+   */
+  def canWrapAsByteBuffer: Boolean = isCompact
 
   /**
    * Java API: Returns an Iterable of read-only ByteBuffers that directly wraps this ByteStrings
@@ -613,6 +618,7 @@ final class ByteStringBuilder extends Builder[Byte, ByteString] {
         _length += seq.length
       case seq: collection.IndexedSeq[_] ⇒
         ensureTempSize(_tempLength + xs.size)
+        //TODO: is this safe? passes the Array out to non-final method
         xs.copyToArray(_temp, _tempLength)
         _tempLength += seq.length
         _length += seq.length

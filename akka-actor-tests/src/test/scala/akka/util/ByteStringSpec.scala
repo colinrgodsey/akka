@@ -305,7 +305,8 @@ class ByteStringSpec extends WordSpec with Matchers with Checkers {
           val unsafeBs = ByteString.ByteString1(arr)
 
           //should directly use the underlying buffer
-          if (unsafeBs.isCompact && len > 0) {
+          if (len < 1) true
+          else if (unsafeBs.canWrapAsByteBuffer) {
             //make buffer before mutation
             val testByteBuffer = unsafeBs.asByteBuffer
 
@@ -314,7 +315,17 @@ class ByteStringSpec extends WordSpec with Matchers with Checkers {
             arr(0) = testByte
 
             unsafeBs(0) == testByte && testByteBuffer.get(0) == testByte
-          } else true
+          } else {
+            //make buffer before mutation
+            val testByteBuffer = unsafeBs.asByteBuffer
+
+            //make sure it differs
+            val origByte = arr(0)
+            val testByte = (origByte - 1).toByte
+            arr(0) = testByte
+
+            unsafeBs(0) == testByte && testByteBuffer.get(0) == origByte
+          }
         }
       }
 

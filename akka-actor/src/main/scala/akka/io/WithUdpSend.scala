@@ -92,7 +92,7 @@ private[io] trait WithUdpSend {
   }
 
   private def doSend(registration: ChannelRegistration): Unit = {
-    if (pendingSend.payload.isCompact) {
+    if (pendingSend.payload.canWrapAsByteBuffer) {
       doSendBuffer(pendingSend.payload.asByteBuffer, registration)
     } else {
       val buffer = udp.bufferPool.acquire()
