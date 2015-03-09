@@ -298,7 +298,27 @@ class ByteStringSpec extends WordSpec with Matchers with Checkers {
         }
       }
 
-      "asByteBuffers" in {
+      "calling asByteBuffer" in {
+        check { slice: ArraySlice[Byte] ⇒
+          val (arr, from, until) = slice
+          val len = until - from
+          val unsafeBs = ByteString.ByteString1(arr)
+
+          //should directly use the underlying buffer
+          if (unsafeBs.isCompact && len > 0) {
+            //make buffer before mutation
+            val testByteBuffer = unsafeBs.asByteBuffer
+
+            //make sure it differs
+            val testByte = (arr(0) - 1).toByte
+            arr(0) = testByte
+
+            unsafeBs(0) == testByte && testByteBuffer.get(0) == testByte
+          } else true
+        }
+      }
+
+      "calling asByteBuffers" in {
         check { (a: ByteString) ⇒ if (a.isCompact) a.asByteBuffers.size == 1 && a.asByteBuffers.head == a.asByteBuffer else a.asByteBuffers.size > 0 }
         check { (a: ByteString) ⇒ a.asByteBuffers.foldLeft(ByteString.empty) { (bs, bb) ⇒ bs ++ ByteString(bb) } == a }
         check { (a: ByteString) ⇒ a.asByteBuffers.forall(_.isReadOnly) }

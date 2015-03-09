@@ -361,20 +361,17 @@ private[io] abstract class TcpConnection(val tcp: TcpExt, val channel: SocketCha
   }
 
   def PendingBufferWrite(commander: ActorRef, data: ByteString, ack: Event, tail: WriteCommand): PendingBufferWrite = {
-    @inline def newPendingBufferWrite(buffer: ByteBuffer, remaining: ByteString) =
-      new PendingBufferWrite(commander, remaining, ack, buffer, tail)
-
     if (data.isCompact) {
       val head = data.headByteString
       val remaining = data.drop(head.length)
 
-      newPendingBufferWrite(head.asByteBuffer, remaining)
+      new PendingBufferWrite(commander, remaining, ack, head.asByteBuffer, tail)
     } else {
       val buffer = bufferPool.acquire()
       try {
         val copied = data.copyToBuffer(buffer)
         buffer.flip()
-        newPendingBufferWrite(buffer, data.drop(copied))
+        new PendingBufferWrite(commander, data.drop(copied), ack, buffer, tail)
       } catch {
         case NonFatal(e) ⇒
           bufferPool.release(buffer)
