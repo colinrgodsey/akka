@@ -4,15 +4,9 @@
 
 package akka.util
 
-<<<<<<< HEAD
-import java.io.InputStream
-import java.nio.{ ByteBuffer, ByteOrder }
-import java.lang.{ Iterable ⇒ JIterable }
-=======
 import java.nio.{ ByteBuffer, ByteOrder }
 import java.lang.{ Iterable ⇒ JIterable }
 
->>>>>>> parent of b1689fb... ByteString copy optimization
 import scala.annotation.varargs
 import scala.collection.IndexedSeqOptimized
 import scala.collection.mutable.{ Builder, WrappedArray }
