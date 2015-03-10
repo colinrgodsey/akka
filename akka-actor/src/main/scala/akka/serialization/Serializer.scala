@@ -72,13 +72,7 @@ trait Serializer {
 
     if (is.available > 0) builder.sizeHint(is.available)
 
-    var reading = true
-    while (reading) {
-      val n = is.read()
-
-      if (n == -1) reading = false
-      else builder += n.toByte
-    }
+    builder ++= Iterator.continually(is.read).takeWhile(_ != -1).map(_.toByte)
 
     fromBinary(builder.result(), manifest)
   }

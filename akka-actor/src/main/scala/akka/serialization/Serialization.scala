@@ -120,7 +120,7 @@ class Serialization(val system: ExtendedActorSystem) extends Extension {
     Try(serializerFor(clazz).fromBinary(bytes, Some(clazz)).asInstanceOf[T])
 
   /**
-   * Deserializes the given array of bytes using the specified serializer id,
+   * Deserializes the given InputStream using the specified serializer id,
    * using the optional type hint to the Serializer and the optional ClassLoader ot load it into.
    * Returns either the resulting object or an Exception if one was thrown.
    */
