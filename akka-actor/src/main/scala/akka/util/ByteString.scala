@@ -4,9 +4,15 @@
 
 package akka.util
 
+<<<<<<< HEAD
 import java.io.InputStream
 import java.nio.{ ByteBuffer, ByteOrder }
 import java.lang.{ Iterable ⇒ JIterable }
+=======
+import java.nio.{ ByteBuffer, ByteOrder }
+import java.lang.{ Iterable ⇒ JIterable }
+
+>>>>>>> parent of b1689fb... ByteString copy optimization
 import scala.annotation.varargs
 import scala.collection.IndexedSeqOptimized
 import scala.collection.mutable.{ Builder, WrappedArray }
@@ -49,11 +55,6 @@ object ByteString {
   def apply(string: String, charset: String): ByteString = CompactByteString(string, charset)
 
   /**
-   * Creates a new ByteString from an IndexedSeq
-   */
-  def apply(seq: collection.IndexedSeq[Byte]): ByteString = ByteString.ByteString1(seq).compact
-
-  /**
    * Creates a new ByteString by copying a byte array.
    */
   def fromArray(array: Array[Byte]): ByteString = apply(array)
@@ -88,11 +89,6 @@ object ByteString {
    */
   def fromByteBuffer(buffer: ByteBuffer): ByteString = apply(buffer)
 
-  /**
-   * Creates a new ByteString from an IndexedSeq
-   */
-  def fromIndexedSeq(seq: collection.IndexedSeq[Byte]): ByteString = apply(seq)
-
   val empty: ByteString = CompactByteString(Array.empty[Byte])
 
   def newBuilder: ByteStringBuilder = new ByteStringBuilder
@@ -124,8 +120,6 @@ object ByteString {
 
     def asByteBuffers: scala.collection.immutable.Iterable[ByteBuffer] = List(asByteBuffer)
 
-    def headByteString: ByteString.ByteString1 = toByteString1
-
     def decodeString(charset: String): String =
       if (isEmpty) "" else new String(bytes, charset)
 
@@ -144,11 +138,6 @@ object ByteString {
     def apply(bytes: Array[Byte]): ByteString1 = ByteString1(bytes, 0, bytes.length)
     def apply(bytes: Array[Byte], startIndex: Int, length: Int): ByteString1 =
       if (length == 0) empty else new ByteString1(bytes, startIndex, length)
-    def apply(seq: collection.IndexedSeq[Byte]): ByteString1 = {
-      val tmpArr = new Array[Byte](seq.length)
-      seq.copyToArray(tmpArr)
-      ByteString.ByteString1(tmpArr)
-    }
   }
 
   /**
@@ -159,8 +148,6 @@ object ByteString {
     private def this(bytes: Array[Byte]) = this(bytes, 0, bytes.length)
 
     def apply(idx: Int): Byte = bytes(checkRangeConvert(idx))
-
-    def headByteString: ByteString.ByteString1 = this
 
     override def iterator: ByteIterator.ByteArrayIterator =
       ByteIterator.ByteArrayIterator(bytes, startIndex, startIndex + length)
@@ -174,13 +161,14 @@ object ByteString {
 
     def isCompact: Boolean = (length == bytes.length)
 
-    override def canWrapAsByteBuffer: Boolean = true
-
     def compact: CompactByteString =
       if (isCompact) ByteString1C(bytes) else ByteString1C(toArray)
 
-    def asByteBuffer: ByteBuffer =
-      ByteBuffer.wrap(bytes, startIndex, length).asReadOnlyBuffer
+    def asByteBuffer: ByteBuffer = {
+      val buffer = ByteBuffer.wrap(bytes, startIndex, length).asReadOnlyBuffer
+      if (buffer.remaining < bytes.length) buffer.slice
+      else buffer
+    }
 
     def asByteBuffers: scala.collection.immutable.Iterable[ByteBuffer] = List(asByteBuffer)
 
@@ -292,8 +280,6 @@ object ByteString {
     def asByteBuffers: scala.collection.immutable.Iterable[ByteBuffer] = bytestrings map { _.asByteBuffer }
 
     def decodeString(charset: String): String = compact.decodeString(charset)
-
-    def headByteString: ByteString.ByteString1 = if (length == 0) ByteString1.empty else bytestrings.head
   }
 }
 
@@ -388,13 +374,8 @@ sealed abstract class ByteString extends IndexedSeq[Byte] with IndexedSeqOptimiz
   def isCompact: Boolean
 
   /**
-   * Gets the first ByteString or this ByteString if not fragmented.
-   */
-  def headByteString: ByteString.ByteString1
-
-  /**
-   * Returns a read-only ByteBuffer that either directly wraps the content,
-   * or returns a cloned copy if this ByteString is fragmented.
+   * Returns a read-only ByteBuffer that directly wraps this ByteString
+   * if it is not fragmented.
    */
   def asByteBuffer: ByteBuffer
 
@@ -403,11 +384,6 @@ sealed abstract class ByteString extends IndexedSeq[Byte] with IndexedSeqOptimiz
    * all fragments. Will always have at least one entry.
    */
   def asByteBuffers: immutable.Iterable[ByteBuffer]
-
-  /**
-   * Indicates whether this ByteString can produce a wrapped ByteBuffer via [[asByteBuffer]].
-   */
-  def canWrapAsByteBuffer: Boolean = isCompact
 
   /**
    * Java API: Returns an Iterable of read-only ByteBuffers that directly wraps this ByteStrings
@@ -588,12 +564,8 @@ final class ByteStringBuilder extends Builder[Byte, ByteString] {
     _tempCapacity = _temp.length
   }
 
-  @inline private def shouldResizeTempFor(size: Int): Boolean = {
-    _tempCapacity < size || _tempCapacity == 0
-  }
-
   private def ensureTempSize(size: Int): Unit = {
-    if (shouldResizeTempFor(size)) {
+    if (_tempCapacity < size || _tempCapacity == 0) {
       var newSize = if (_tempCapacity == 0) 16 else _tempCapacity * 2
       while (newSize < size) newSize *= 2
       resizeTemp(newSize)
@@ -624,14 +596,8 @@ final class ByteStringBuilder extends Builder[Byte, ByteString] {
         _length += bs.length
       case xs: WrappedArray.ofByte ⇒
         putByteArrayUnsafe(xs.array.clone)
-      case seq: collection.IndexedSeq[Byte] if shouldResizeTempFor(seq.length) ⇒
-        //we will have to resize and copy anyways, might as well flush it
-        clearTemp()
-        _builder += ByteString.ByteString1(seq)
-        _length += seq.length
       case seq: collection.IndexedSeq[_] ⇒
         ensureTempSize(_tempLength + xs.size)
-        //TODO: is this safe? passes the Array out to non-final method
         xs.copyToArray(_temp, _tempLength)
         _tempLength += seq.length
         _length += seq.length

@@ -118,9 +118,12 @@ private[io] class UdpConnection(udpConn: UdpConnectedExt,
   }
 
   final def doWrite(): Unit = {
-    val (send, commander) = pendingSend
-    val buffer = udpConn.bufferPool.readOnlyOrAcquireAndCopy(send.payload)
+    val buffer = udpConn.bufferPool.acquire()
     try {
+      val (send, commander) = pendingSend
+      buffer.clear()
+      send.payload.copyToBuffer(buffer)
+      buffer.flip()
       val writtenBytes = channel.write(buffer)
       if (TraceLogging) log.debug("Wrote [{}] bytes to channel", writtenBytes)
 
