@@ -233,6 +233,20 @@ class SerializeSpec extends AkkaSpec(SerializationTests.serializeConf) {
       ser.serializerFor(classOf[E]).getClass should be(classOf[TestSerializer])
     }
 
+    "consume InputStream the same as an Array[Byte]" in {
+      val testData = systemMessageMultiSerializerConf.getBytes()
+      val testSer = new TestSerializer {
+        override def fromBinary(bytes: Array[Byte], clazz: Option[Class[_]]): AnyRef = {
+          require(testData.toSeq == bytes.toSeq, "malformed data encountered")
+          null
+        }
+      }
+
+      testSer.fromBinary(testData)
+      testSer.fromBinary(testData, None)
+      testSer.fromInputStream(new ByteArrayInputStream(testData), None)
+    }
+
     "throw java.io.NotSerializableException when no binding" in {
       intercept[java.io.NotSerializableException] {
         ser.serializerFor(classOf[Actor])

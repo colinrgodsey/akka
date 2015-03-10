@@ -46,7 +46,7 @@ trait Serializer {
   def toBinary(o: AnyRef): Array[Byte]
 
   /**
-   * Writes the serialized data out to an output stream
+   * Writes the serialized data to an output stream
    */
   def toOutputStream(o: AnyRef, out: OutputStream): Unit =
     out.write(toBinary(o))
@@ -74,7 +74,7 @@ trait Serializer {
 
     builder ++= Iterator.continually(is.read).takeWhile(_ != -1).map(_.toByte)
 
-    fromBinary(builder.result(), manifest)
+    fromBinary(builder.result, manifest)
   }
 
   /**
@@ -171,12 +171,6 @@ class JavaSerializer(val system: ExtendedActorSystem) extends BaseSerializer {
 
   def includeManifest: Boolean = false
 
-  override def toOutputStream(o: AnyRef, out: OutputStream): Unit = {
-    val oos = new ObjectOutputStream(out)
-    JavaSerializer.currentSystem.withValue(system) { oos.writeObject(o) }
-    oos.close()
-  }
-
   def toBinary(o: AnyRef): Array[Byte] = {
     val bos = new ByteArrayOutputStream
     toOutputStream(o, bos)
@@ -185,6 +179,12 @@ class JavaSerializer(val system: ExtendedActorSystem) extends BaseSerializer {
 
   def fromBinary(bytes: Array[Byte], clazz: Option[Class[_]]): AnyRef =
     fromInputStream(new ByteArrayInputStream(bytes), clazz)
+
+  override def toOutputStream(o: AnyRef, out: OutputStream): Unit = {
+    val oos = new ObjectOutputStream(out)
+    JavaSerializer.currentSystem.withValue(system) { oos.writeObject(o) }
+    oos.close()
+  }
 
   override def fromInputStream(is: InputStream, clazz: Option[Class[_]]): AnyRef = try {
     val in = new ClassLoaderObjectInputStream(system.dynamicAccess.classLoader, is)
