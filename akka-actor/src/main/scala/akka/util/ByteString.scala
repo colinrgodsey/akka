@@ -94,12 +94,9 @@ object ByteString {
       def apply(): ByteStringBuilder = newBuilder
     }
 
-  private[akka] val BYTESTRING1_SER_IDENT = 0.toByte
-  private[akka] val BYTESTRING1C_SER_IDENT = 1.toByte
-  private[akka] val BYTESTRINGS_SER_IDENT = 2.toByte
-
   private[akka] object ByteString1C {
     def apply(bytes: Array[Byte]): ByteString1C = new ByteString1C(bytes)
+    private[akka] val SerializationIdentity = 1.toByte
   }
 
   /**
@@ -139,6 +136,8 @@ object ByteString {
     def apply(bytes: Array[Byte]): ByteString1 = ByteString1(bytes, 0, bytes.length)
     def apply(bytes: Array[Byte], startIndex: Int, length: Int): ByteString1 =
       if (length == 0) empty else new ByteString1(bytes, startIndex, length)
+
+    private[akka] val SerializationIdentity = 0.toByte
   }
 
   /**
@@ -234,6 +233,7 @@ object ByteString {
         if (b2.isEmpty) 0 else 2
       else if (b2.isEmpty) 1 else 3
 
+    private[akka] val SerializationIdentity = 2.toByte
   }
 
   /**
@@ -297,9 +297,9 @@ object ByteString {
   private class SerializationProxy(@transient private var orig: ByteString) extends Serializable {
     private def writeObject(out: java.io.ObjectOutputStream) {
       val serType = orig match {
-        case _: ByteString1  ⇒ BYTESTRING1_SER_IDENT
-        case _: ByteString1C ⇒ BYTESTRING1C_SER_IDENT
-        case _: ByteStrings  ⇒ BYTESTRINGS_SER_IDENT
+        case _: ByteString1  ⇒ ByteString1.SerializationIdentity
+        case _: ByteString1C ⇒ ByteString1C.SerializationIdentity
+        case _: ByteStrings  ⇒ ByteStrings.SerializationIdentity
       }
       out.writeByte(serType)
       out.writeInt(orig.length)
@@ -315,10 +315,10 @@ object ByteString {
       in.read(arr, 0, s)
 
       orig = serType match {
-        case BYTESTRING1_SER_IDENT  ⇒ ByteString1(arr)
-        case BYTESTRING1C_SER_IDENT ⇒ ByteString1C(arr)
-        case BYTESTRINGS_SER_IDENT  ⇒ ByteStrings(Vector(ByteString1(arr)))
-        case _                      ⇒ throw new IllegalArgumentException("Invalid serialization id " + serType)
+        case ByteString1.SerializationIdentity  ⇒ ByteString1(arr)
+        case ByteString1C.SerializationIdentity ⇒ ByteString1C(arr)
+        case ByteStrings.SerializationIdentity  ⇒ ByteStrings(Vector(ByteString1(arr)))
+        case _                                  ⇒ throw new IllegalArgumentException("Invalid serialization id " + serType)
       }
     }
 
